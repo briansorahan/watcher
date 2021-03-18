@@ -491,7 +491,7 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 	fileList := make(map[string]os.FileInfo)
 
 	for name, recursive := range w.names {
-		list, err := w.addTo(name, recursive)
+		list, err := w.getList(name, recursive)
 		if err == nil {
 			// Add the files to the file list.
 			for k, v := range list {
@@ -503,14 +503,18 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 		var toRemove string
 		switch x := err.(type) {
 		case *os.PathError:
-			w.Error <- ErrWatchedFileDeleted(toRemove)
-			toRemove = x.Path
+			if os.IsNotExist(err) {
+				w.Error <- ErrWatchedFileDeleted(toRemove)
+				toRemove = x.Path
+			} else {
+				w.Error <- fmt.Errorf("watcher: PathError for %s: %s", name, x)
+			}
 		case *os.SyscallError:
-			fmt.Printf("watcher: syscall error returned by list(%s): %s", name, x)
-			w.Error <- fmt.Errorf("watcher: syscall error returned by list(%s): %s", name, x)
+			fmt.Printf("watcher: SyscallError for %s: %s", name, x)
+			w.Error <- fmt.Errorf("watcher: SyscallError for %s: %s", name, x)
 		default:
-			fmt.Printf("watcher: unrecognized error type returned by list(%s): %T", name, err)
-			w.Error <- fmt.Errorf("watcher: unrecognized error type returned by list(%s): %T", name, err)
+			fmt.Printf("watcher: unrecognized error type for %s: %T", name, err)
+			w.Error <- fmt.Errorf("watcher: unrecognized error type for %s: %T", name, err)
 		}
 		if len(toRemove) > 0 {
 			w.mu.Unlock()
@@ -522,7 +526,7 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 	return fileList
 }
 
-func (w *Watcher) addTo(name string, recursive bool) (map[string]os.FileInfo, error) {
+func (w *Watcher) getList(name string, recursive bool) (map[string]os.FileInfo, error) {
 	if recursive {
 		return w.listRecursive(name)
 	}
