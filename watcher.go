@@ -22,14 +22,16 @@ var (
 	// from previously calling Start and not yet calling Close.
 	ErrWatcherRunning = errors.New("error: watcher is already running")
 
-	// ErrWatchedFileDeleted is an error that occurs when a file or folder that was
-	// being watched has been deleted.
-	ErrWatchedFileDeleted = errors.New("error: watched file or folder deleted")
-
 	// ErrSkip is less of an error, but more of a way for path hooks to skip a file or
 	// directory.
 	ErrSkip = errors.New("error: skipping file")
 )
+
+// ErrWatchedFileDeleted is an error that occurs when a file or folder that was
+// being watched has been deleted.
+func ErrWatchedFileDeleted(path string) error {
+	return errors.New("watched file or folder deleted: " + path)
+}
 
 // An Op is a type that is used to describe what type
 // of event has occurred during the watching process.
@@ -488,55 +490,43 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 
 	fileList := make(map[string]os.FileInfo)
 
-	var list map[string]os.FileInfo
-	var err error
-
 	for name, recursive := range w.names {
-		if recursive {
-			list, err = w.listRecursive(name)
-			if err != nil {
-				if os.IsNotExist(err) {
-					w.mu.Unlock()
-					if name == err.(*os.PathError).Path {
-						w.Error <- ErrWatchedFileDeleted
-						w.RemoveRecursive(name)
-					}
-					w.mu.Lock()
-				} else {
-					w.Error <- err
-				}
+		list, err := w.addTo(name, recursive)
+		if err == nil {
+			// Add the files to the file list.
+			for k, v := range list {
+				fileList[k] = v
 			}
-		} else {
-			list, err = w.list(name)
-			if err == nil {
-				goto IndexFileList
-			}
-			var toRemove string
-			switch x := err.(type) {
-			case *os.PathError:
-				w.Error <- ErrWatchedFileDeleted
-				toRemove = x.Path
-			case *os.SyscallError:
-				fmt.Printf("watcher: syscall error returned by list(%s): %s", name, x)
-				w.Error <- err
-			default:
-				fmt.Printf("watcher: unrecognized error type returned by list(%s): %T", name, err)
-				w.Error <- err
-			}
-			if len(toRemove) > 0 {
-				w.mu.Unlock()
-				w.Remove(toRemove)
-				w.mu.Lock()
-			}
+			continue
 		}
-	IndexFileList:
-		// Add the file's to the file list.
-		for k, v := range list {
-			fileList[k] = v
+		// Handle the error.
+		var toRemove string
+		switch x := err.(type) {
+		case *os.PathError:
+			w.Error <- ErrWatchedFileDeleted(toRemove)
+			toRemove = x.Path
+		case *os.SyscallError:
+			fmt.Printf("watcher: syscall error returned by list(%s): %s", name, x)
+			w.Error <- fmt.Errorf("watcher: syscall error returned by list(%s): %s", name, x)
+		default:
+			fmt.Printf("watcher: unrecognized error type returned by list(%s): %T", name, err)
+			w.Error <- fmt.Errorf("watcher: unrecognized error type returned by list(%s): %T", name, err)
+		}
+		if len(toRemove) > 0 {
+			w.mu.Unlock()
+			w.Remove(toRemove)
+			w.mu.Lock()
 		}
 	}
 
 	return fileList
+}
+
+func (w *Watcher) addTo(name string, recursive bool) (map[string]os.FileInfo, error) {
+	if recursive {
+		return w.listRecursive(name)
+	}
+	return w.list(name)
 }
 
 // Start begins the polling cycle which repeats every specified
