@@ -514,8 +514,8 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 			fmt.Printf("watcher: SyscallError for %s: %s", name, x)
 			w.Error <- fmt.Errorf("watcher: SyscallError for %s: %s", name, x)
 		default:
-			fmt.Printf("watcher: unrecognized error type for %s: %T", name, err)
-			w.Error <- fmt.Errorf("watcher: unrecognized error type for %s: %T", name, err)
+			fmt.Printf("watcher: unrecognized error type for %s: %T: %s", name, err, err)
+			w.Error <- fmt.Errorf("watcher: unrecognized error type for %s: %T: %s", name, err, err)
 		}
 		if len(toRemove) > 0 {
 			w.mu.Unlock()
