@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/radovskyb/watcher"
+	"github.com/briansorahan/watcher"
 )
 
 func main() {
@@ -97,10 +97,7 @@ func main() {
 					}
 				}
 			case err := <-w.Error:
-				if err == watcher.ErrWatchedFileDeleted {
-					fmt.Println(err)
-					continue
-				}
+				// TODO: don't fail just because a file is deleted
 				log.Fatalln(err)
 			case <-w.Closed:
 				return

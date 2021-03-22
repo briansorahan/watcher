@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -244,7 +245,7 @@ func (w *Watcher) list(name string) (map[string]os.FileInfo, error) {
 	// It's a directory.
 	fInfoList, err := ioutil.ReadDir(name)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "ioutil.ReadDir") // TODO: be consistent about wrapping errors!
 	}
 	// Add all of the files in the directory to the file list as long
 	// as they aren't on the ignored list or are hidden files if ignoreHidden
