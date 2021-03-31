@@ -502,7 +502,7 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 		}
 		// Handle the error.
 		var toRemove string
-		switch x := err.(type) {
+		switch x := Unwrapr(err).(type) {
 		case *os.PathError:
 			if os.IsNotExist(err) {
 				w.Error <- ErrWatchedFileDeleted(toRemove)
@@ -716,4 +716,14 @@ func (w *Watcher) Close() {
 	w.mu.Unlock()
 	// Send a close signal to the Start method.
 	w.close <- struct{}{}
+}
+
+func Unwrapr(err error) error {
+	for {
+		if res := errors.Unwrap(err); res == nil {
+			return err
+		}
+		err = errors.Unwrap(err)
+	}
+	return nil
 }
